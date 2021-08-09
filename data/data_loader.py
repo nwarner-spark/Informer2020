@@ -1,6 +1,9 @@
 import os
 import numpy as np
 import pandas as pd
+import sys
+sys.path.insert(0,'/home/nwarner/Informer2020')
+
 
 import torch
 from torch.utils.data import Dataset, DataLoader

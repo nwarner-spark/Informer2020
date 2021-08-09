@@ -1,14 +1,16 @@
 import argparse
 import os
 import torch
+import sys
+sys.path.insert(0,'/home/nwarner/Informer2020')
 
 from exp.exp_informer import Exp_Informer
 
 parser = argparse.ArgumentParser(description='[Informer] Long Sequences Forecasting')
 
-parser.add_argument('--model', type=str, required=True, default='informer',help='model of experiment, options: [informer, informerstack, informerlight(TBD)]')
+parser.add_argument('--model', type=str, default='informer',help='model of experiment, options: [informer, informerstack, informerlight(TBD)]')
 
-parser.add_argument('--data', type=str, required=True, default='ETTh1', help='data')
+parser.add_argument('--data', type=str, default='ETTh1', help='data')
 parser.add_argument('--root_path', type=str, default='./data/ETT/', help='root path of the data file')
 parser.add_argument('--data_path', type=str, default='ETTh1.csv', help='data file')    
 parser.add_argument('--features', type=str, default='M', help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
@@ -57,6 +59,12 @@ parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
 parser.add_argument('--gpu', type=int, default=0, help='gpu')
 parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
 parser.add_argument('--devices', type=str, default='0,1,2,3',help='device ids of multile gpus')
+
+## Add parsing arguments for encoder, decoder FNET attention type
+parser.add_argument('--encoder_type', type=str, default='fnet',help='FNET or Attn for encoder')
+parser.add_argument('--decoder_type', type=str, default='fnet',help='FNET or Attn for decoder')
+
+
 
 args = parser.parse_args()
 
