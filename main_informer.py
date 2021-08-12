@@ -61,8 +61,8 @@ parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple g
 parser.add_argument('--devices', type=str, default='0,1,2,3',help='device ids of multile gpus')
 
 ## Add parsing arguments for encoder, decoder FNET attention type
-parser.add_argument('--encoder_type', type=str, default='fnet',help='FNET or Attn for encoder')
-parser.add_argument('--decoder_type', type=str, default='fnet',help='FNET or Attn for decoder')
+parser.add_argument('--encoder_type', type=str, default='attention',help='FNET or Attn for encoder')
+parser.add_argument('--decoder_type', type=str, default='attention',help='FNET or Attn for decoder')
 
 
 

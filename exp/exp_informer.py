@@ -220,10 +220,12 @@ class Exp_Informer(Exp_Basic):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        mae, mse, rmse, mape, mspe = metric(preds, trues)
-        print('mse:{}, mae:{}'.format(mse, mae))
+        mae,mse,mape,wmape,rmse,rrse = metric(preds, trues)
+        print('mse:{}, mae:{}'.format(mse, mae)+"\n")
+        print('mape:{}, wmape:{}'.format(mape, wmape)+"\n")
+        print('rmse:{}, rrse:{}'.format(rmse,rrse)+"\n")
 
-        np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
+        np.save(folder_path+'metrics.npy', np.array([mae, mse, mape,wmape,rmse,rrse]))
         np.save(folder_path+'pred.npy', preds)
         np.save(folder_path+'true.npy', trues)
 
