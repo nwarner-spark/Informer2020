@@ -18,6 +18,19 @@ import time
 import warnings
 warnings.filterwarnings('ignore')
 
+import subprocess
+
+def run_nvidia_smi(output_file):
+    # Record GPU metrics in a subprocess and pipe CSV output to `output_file`.
+    
+    cmd = f"nvidia-smi --query-gpu=timestamp,name,index,count,uuid,gpu_bus_id,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.free,memory.used --format=csv -l 1 > {output_file}"
+    
+    process = subprocess.Popen(cmd,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT,
+                               universal_newlines=True,
+                               shell=True)
+
 class Exp_Informer(Exp_Basic):
     def __init__(self, args):
         super(Exp_Informer, self).__init__(args)
@@ -132,6 +145,12 @@ class Exp_Informer(Exp_Basic):
         path = os.path.join(self.args.checkpoints, setting)
         if not os.path.exists(path):
             os.makedirs(path)
+
+        # record GPU usage
+        folder_path = './results/' + setting +'/'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        run_nvidia_smi(folder_path + 'gpu-usage.csv')
 
         time_now = time.time()
         
