@@ -79,59 +79,60 @@ class FNetEncoder(nn.Module):
             x = ff(x) + x
         return x, attn_mask
 
-#only for forecasting :) (causal masking off the table)
-class FNetDecoder(nn.Module):
-    def __init__(self, dim, depth, mlp_dim, forc_len, seq_len, dropout = 0.):
-        super().__init__()
-        self.layers = nn.ModuleList([])
-        self.forc_len = forc_len
-        self.seq_len = seq_len
-        self.proj = nn.Parameter(init_(torch.zeros(seq_len, forc_len)))
-        for _ in range(2 * depth):
-            self.layers.append(nn.ModuleList([
-                PreNorm(dim, FNetBlock()),
-#                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout)),
-                PreNorm(dim, FNetBlock()),
-                PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))   #operating on forc_len does too much complexity damage
-            ]))
-    def forward(self, x, cross, x_mask=None, cross_mask=None):
-        for attn, cattn, cff in self.layers:
-            x = attn(x) + x #decoder queries 'attend' to decoder keys
-#             x = ff(x) + x
-            cross = cattn(cross)
-            forc = torch.einsum('bnd,nf->bfd', cross, self.proj)
-#             perm = forc.permute(0, 2, 1)  #applying linear layers to seq_len dimension balloons params, ruins complexity?
-            x = cff(x + F.pad(forc, (0, 0, self.seq_len, 0)))
-            
-        return x
+# Decoder only works for one-shot forecasting (causal masking for reconstruction not viable)
 
-    
-# lower performance decoder with constant n_params    
 # class FNetDecoder(nn.Module):
 #     def __init__(self, dim, depth, mlp_dim, forc_len, seq_len, dropout = 0.):
 #         super().__init__()
 #         self.layers = nn.ModuleList([])
 #         self.forc_len = forc_len
 #         self.seq_len = seq_len
-#         self.proj = nn.Parameter(init_(torch.zeros(seq_len, mlp_dim)), requires_grad=False)
-#         self.reproj = nn.Parameter(init_(torch.zeros(mlp_dim, forc_len)), requires_grad=False)
+#         self.proj = nn.Parameter(init_(torch.zeros(seq_len, forc_len)))
 #         for _ in range(2 * depth):
 #             self.layers.append(nn.ModuleList([
 #                 PreNorm(dim, FNetBlock()),
-#                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout)),
+# #                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout)),
 #                 PreNorm(dim, FNetBlock()),
-#                 PreNorm(mlp_dim, FeedForward(mlp_dim, mlp_dim, dropout = dropout))   #operating on forc_len does too much complexity damage
+#                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))   #operating on forc_len does too much complexity damage
 #             ]))
 #     def forward(self, x, cross, x_mask=None, cross_mask=None):
-#         for attn, ff, cattn, cff in self.layers:
+#         for attn, cattn, cff in self.layers:
 #             x = attn(x) + x #decoder queries 'attend' to decoder keys
-#             x = ff(x) + x #maybe save for after?
+# #             x = ff(x) + x
 #             cross = cattn(cross)
-#             proj = torch.einsum('bnd,nm->bdm', cross, self.proj)
-#             proj = cff(proj)
-#             forc = torch.einsum('bdm,mf->bfd', proj, self.reproj)
-# #             forc = torch.einsum('bnd,nf->bfd', cross, self.proj)
+#             forc = torch.einsum('bnd,nf->bfd', cross, self.proj)
 # #             perm = forc.permute(0, 2, 1)  #applying linear layers to seq_len dimension balloons params, ruins complexity?
-#             x = x + F.pad(forc, (0, 0, self.seq_len, 0))
+#             x = cff(x + F.pad(forc, (0, 0, self.seq_len, 0)))
             
 #         return x
+
+    
+#lower performance decoder with when proj and reproj are unlearned    
+class FNetDecoder(nn.Module):
+    def __init__(self, dim, depth, mlp_dim, forc_len, seq_len, dropout = 0.):
+        super().__init__()
+        self.layers = nn.ModuleList([])
+        self.forc_len = forc_len
+        self.seq_len = seq_len
+        self.proj = nn.Parameter(init_(torch.zeros(seq_len, mlp_dim)))#, requires_grad=False)
+        self.reproj = nn.Parameter(init_(torch.zeros(mlp_dim, forc_len)))#, requires_grad=False)
+        for _ in range(2 * depth):
+            self.layers.append(nn.ModuleList([
+                PreNorm(dim, FNetBlock()),
+                PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout)),
+                PreNorm(dim, FNetBlock()),
+                PreNorm(mlp_dim, FeedForward(mlp_dim, mlp_dim, dropout = dropout))   #operating on forc_len does too much complexity damage
+            ]))
+    def forward(self, x, cross, x_mask=None, cross_mask=None):
+        for attn, ff, cattn, cff in self.layers:
+            x = attn(x) + x #decoder queries 'attend' to decoder keys
+            x = ff(x) + x #maybe save for after?
+            cross = cattn(cross)
+            proj = torch.einsum('bnd,nm->bdm', cross, self.proj)
+            proj = cff(proj)
+            forc = torch.einsum('bdm,mf->bfd', proj, self.reproj)
+#             forc = torch.einsum('bnd,nf->bfd', cross, self.proj)
+#             perm = forc.permute(0, 2, 1)  #applying linear layers to seq_len dimension balloons params, ruins complexity?
+            x = x + F.pad(forc, (0, 0, self.seq_len, 0))
+            
+        return x
