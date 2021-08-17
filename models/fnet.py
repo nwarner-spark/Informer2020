@@ -1,4 +1,3 @@
-from nbm_bench.models.fft_ae import FNetAutoencoder
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
