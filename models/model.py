@@ -79,7 +79,7 @@ class Informer(nn.Module):
             )
         else:
             self.decoder = FNetDecoder(
-                d_model, d_layers, d_ff, out_len, dropout=dropout
+                d_model, d_layers, d_ff, out_len, seq_len, dropout=dropout
             )
 
         self.projection = nn.Linear(d_model, c_out, bias=True)
