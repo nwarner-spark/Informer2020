@@ -213,6 +213,10 @@ class Exp_Informer(Exp_Basic):
             
         best_model_path = path+'/'+'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
+
+        if self.args.monitor_gpu:
+            # stop the nvidia-smi process that's recording to CSV
+            os.system('pkill -f nvidia-smi')
         
         return self.model
 
