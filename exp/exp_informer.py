@@ -70,6 +70,8 @@ class Exp_Informer(Exp_Basic):
         
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
+        print(model)
+        print('num_params: {:,}'.format(sum(p.numel() for p in model.parameters() if p.requires_grad)))
         return model
 
     def _get_data(self, flag):
@@ -147,10 +149,11 @@ class Exp_Informer(Exp_Basic):
             os.makedirs(path)
 
         # record GPU usage
-        folder_path = './results/' + setting +'/'
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-        run_nvidia_smi(folder_path + 'gpu-usage.csv')
+        if self.args.monitor_gpu:
+            folder_path = './results/' + setting +'/'
+            if not os.path.exists(folder_path):
+                os.makedirs(folder_path)
+            run_nvidia_smi(folder_path + 'gpu-usage.csv')
 
         time_now = time.time()
         
@@ -193,7 +196,7 @@ class Exp_Informer(Exp_Basic):
                 else:
                     loss.backward()
                     model_optim.step()
-
+                    
             print("Epoch: {} cost time: {}".format(epoch+1, time.time()-epoch_time))
             train_loss = np.average(train_loss)
             vali_loss = self.vali(vali_data, vali_loader, criterion)

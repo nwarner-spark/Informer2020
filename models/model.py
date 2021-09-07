@@ -7,7 +7,7 @@ from models.encoder import Encoder, EncoderLayer, ConvLayer, EncoderStack
 from models.decoder import Decoder, DecoderLayer
 from models.attn import FullAttention, ProbAttention, AttentionLayer
 from models.embed import DataEmbedding
-from models.fnet import FNetEncoder, FNetDecoder
+from models.fnet import FNetEncoder, FNetDecoder, FNetEncoder2, FNetDecoder2
 
 class Informer(nn.Module):
     def __init__(self, enc_in, dec_in, c_out, seq_len, label_len, out_len, 
@@ -52,11 +52,15 @@ class Informer(nn.Module):
                 ] if distil else None,
                 norm_layer=torch.nn.LayerNorm(d_model)
             )
-        else:
+        elif self.encoder_type == 'fnet':
             self.encoder = FNetEncoder(
                 d_model, e_layers, d_ff, dropout=dropout
             )
-
+        elif self.encoder_type == 'fnet2':
+            self.encoder = FNetEncoder2(
+                d_model, e_layers, d_ff, dropout=dropout
+            )            
+            
         # Decoder
         self.decoder = None
         if self.decoder_type == 'attention':
@@ -77,8 +81,12 @@ class Informer(nn.Module):
                 ],
                 norm_layer=torch.nn.LayerNorm(d_model)
             )
-        else:
+        elif self.decoder_type == 'fnet':
             self.decoder = FNetDecoder(
+                d_model, d_layers, d_ff, out_len, seq_len, dropout=dropout
+            )
+        elif self.decoder_type == 'fnet2':            
+            self.decoder = FNetDecoder2(
                 d_model, d_layers, d_ff, out_len, seq_len, dropout=dropout
             )
 

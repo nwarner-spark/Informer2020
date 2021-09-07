@@ -78,6 +78,49 @@ class FNetEncoder(nn.Module):
             x = ff(x) + x
         return x, attn_mask
 
+class FNetEncoderLayer(nn.Module):
+    def __init__(self, d_model, d_ff, dropout=0.1, activation='relu'):
+        super().__init__()
+        self.conv1 = nn.Conv1d(in_channels=d_model, out_channels=d_ff, kernel_size=1)
+        self.conv2 = nn.Conv1d(in_channels=d_ff, out_channels=d_model, kernel_size=1)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.dropout = nn.Dropout(dropout)
+        self.activation = F.relu if activation == "relu" else F.gelu        
+
+    def forward(self, x):
+        # x [B, L, D]
+        # new_x, attn = self.attention(
+        #     x, x, x,
+        #     attn_mask = attn_mask
+        # )
+        new_x = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
+        x = x + self.dropout(new_x)
+
+        y = x = self.norm1(x)
+        y = self.dropout(self.activation(self.conv1(y.transpose(-1,1))))
+        y = self.dropout(self.conv2(y).transpose(-1,1))
+
+        return self.norm2(x+y)
+
+
+class FNetEncoder2(nn.Module):
+    def __init__(self, d_model, e_layers, d_ff, dropout = 0.):
+        super().__init__()
+        self.layers = nn.ModuleList([FNetEncoderLayer(d_model, d_ff, dropout=dropout) for _ in range(e_layers)])
+        # always used by informer
+        self.norm = nn.LayerNorm(d_model)
+
+    def forward(self, x, attn_mask=None):
+        for attn_layer in self.layers:
+            x = attn_layer(x)
+
+        if self.norm is not None:
+            x = self.norm(x)
+
+        # attn scores are None for Fnet
+        return x, None
+    
 # Decoder only works for one-shot forecasting (causal masking for reconstruction not viable)
 
 # class FNetDecoder(nn.Module):
@@ -135,3 +178,21 @@ class FNetDecoder(nn.Module):
             x = x + F.pad(forc, (0, 0, self.seq_len, 0))
             
         return x
+
+    
+class FNetDecoder2(nn.Module):
+    def __init__(self, dim, depth, mlp_dim, forc_len, seq_len, dropout = 0.):
+        super().__init__()
+        self.layers = nn.ModuleList([])
+        for _ in range(depth):
+            self.layers.append(nn.ModuleList([
+                PreNorm(dim, FNetBlock()),
+                PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
+            ]))
+            
+    def forward(self, x, cross, x_mask=None, cross_mask=None):
+        for attn, ff in self.layers:
+            x = attn(x) + x
+            x = ff(x) + x
+        return x
+
