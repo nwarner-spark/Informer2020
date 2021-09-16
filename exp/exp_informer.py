@@ -14,6 +14,8 @@ from torch.utils.data import DataLoader
 
 import os
 import time
+import json
+import pandas as pd
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -30,6 +32,38 @@ def run_nvidia_smi(output_file):
                                stderr=subprocess.STDOUT,
                                universal_newlines=True,
                                shell=True)
+
+def load_smi(path):
+    """ Loads the CSV file saved by `nvidia-smi` command below."""
+
+    def p2f(x):
+        # convert percentage values into floats
+        return float(x.strip('%'))
+
+    def mib2f(x):
+        # convert MiB memory usage values into floats
+        return float(x.strip('MiB'))
+
+    df = pd.read_csv(path,
+                     converters={
+                         ' utilization.gpu [%]': p2f,
+                         ' utilization.memory [%]': p2f,
+                         ' memory.total [MiB]': mib2f,
+                         ' memory.free [MiB]': mib2f,
+                         ' memory.used [MiB]': mib2f,
+                     })
+
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+    # remove leading spaces in column names
+    df = df.rename(columns={c: c[1:] if c.startswith(' ') else c for c in df.columns})
+
+    return df
+
+
+def param_count(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 
 class Exp_Informer(Exp_Basic):
     def __init__(self, args):
@@ -71,7 +105,7 @@ class Exp_Informer(Exp_Basic):
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
         print(model)
-        print('num_params: {:,}'.format(sum(p.numel() for p in model.parameters() if p.requires_grad)))
+        print('num_params: {:,}'.format(param_count(model)))
         return model
 
     def _get_data(self, flag):
@@ -148,11 +182,12 @@ class Exp_Informer(Exp_Basic):
         if not os.path.exists(path):
             os.makedirs(path)
 
+        folder_path = './results/' + setting +'/'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
         # record GPU usage
         if self.args.monitor_gpu:
-            folder_path = './results/' + setting +'/'
-            if not os.path.exists(folder_path):
-                os.makedirs(folder_path)
             run_nvidia_smi(folder_path + 'gpu-usage.csv')
 
         time_now = time.time()
@@ -166,6 +201,11 @@ class Exp_Informer(Exp_Basic):
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
 
+        # number of batches
+        n_batches = 0
+        # time for all batches
+        t_batches = time.time()
+
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
@@ -174,6 +214,7 @@ class Exp_Informer(Exp_Basic):
             epoch_time = time.time()
             for i, (batch_x,batch_y,batch_x_mark,batch_y_mark) in enumerate(train_loader):
                 iter_count += 1
+                n_batches += 1
                 
                 model_optim.zero_grad()
                 pred, true = self._process_one_batch(
@@ -196,7 +237,7 @@ class Exp_Informer(Exp_Basic):
                 else:
                     loss.backward()
                     model_optim.step()
-                    
+
             print("Epoch: {} cost time: {}".format(epoch+1, time.time()-epoch_time))
             train_loss = np.average(train_loss)
             vali_loss = self.vali(vali_data, vali_loader, criterion)
@@ -210,13 +251,40 @@ class Exp_Informer(Exp_Basic):
                 break
 
             adjust_learning_rate(model_optim, epoch+1, self.args)
+
+        t_batches = time.time() - t_batches
+        print('Training speed > sec/batch: {:.4f}, batch/sec: {:.4f}, n_batches: {}, t_batches: {:.4f} sec'.format(
+            t_batches / n_batches, n_batches / t_batches, n_batches, t_batches))
             
         best_model_path = path+'/'+'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
 
         if self.args.monitor_gpu:
-            # stop the nvidia-smi process that's recording to CSV
+            # stop the nvidia-smi process
             os.system('pkill -f nvidia-smi')
+
+        if self.args.monitor_gpu:
+            # nvidia-smi metrics for ALL gpus on this machine
+            smi = load_smi(folder_path + 'gpu-usage.csv')
+            # device that the model is on
+            device = next(self.model.parameters()).device
+            # trim to just the GPU that this model is on
+            smi = smi[smi['index'] == device.index]
+            # peak memory usage during training
+            peak_mem_usage = smi['memory.used [MiB]'].max()
+        else:
+            peak_mem_usage = None
+
+        # save some metrics
+        out = dict(
+            n_batches_train=n_batches,
+            t_batches_train=t_batches,
+            peak_mem_usage_train=peak_mem_usage,
+            num_params=param_count(self.model),
+        )
+        print(out)
+        with open(folder_path + 'metrics_train.json', 'a') as f:
+            json.dump(out, f)
         
         return self.model
 
@@ -227,12 +295,22 @@ class Exp_Informer(Exp_Basic):
         
         preds = []
         trues = []
+
+        # number of batches
+        n_batches = 0
+        # time for all batches
+        t_batches = time.time()
         
         for i, (batch_x,batch_y,batch_x_mark,batch_y_mark) in enumerate(test_loader):
+            n_batches += 1
             pred, true = self._process_one_batch(
                 test_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
             preds.append(pred.detach().cpu().numpy())
             trues.append(true.detach().cpu().numpy())
+
+        t_batches = time.time() - t_batches
+        print('Testing speed > sec/batch: {:.4f}, batch/sec: {:.4f}, n_batches: {}, t_batches: {:.4f} sec'.format(
+            t_batches / n_batches, n_batches / t_batches, n_batches, t_batches))
 
         preds = np.array(preds)
         trues = np.array(trues)
@@ -254,6 +332,18 @@ class Exp_Informer(Exp_Basic):
         np.save(folder_path+'metrics.npy', np.array([mae, mse, mape,wmape,rmse,rrse]))
         np.save(folder_path+'pred.npy', preds)
         np.save(folder_path+'true.npy', trues)
+
+        # save some metrics
+        out = dict(
+            n_batches_test=n_batches,
+            t_batches_test=t_batches,
+            mse_test=float(mse),
+            mae_test=float(mae),
+            mape_test=float(mape),
+        )
+        print(out)
+        with open(folder_path + 'metrics_test.json', 'a') as f:
+            json.dump(out, f)
 
         return
 

@@ -63,7 +63,7 @@ parser.add_argument('--devices', type=str, default='0,1,2,3',help='device ids of
 ## Add parsing arguments for encoder, decoder FNET attention type
 parser.add_argument('--encoder_type', type=str, default='attention',help='FNET or Attn for encoder')
 parser.add_argument('--decoder_type', type=str, default='attention',help='FNET or Attn for decoder')
-parser.add_argument('--monitor_gpu', type=int, default=0, help='monitor and save GPU usage with nvidia-smi')
+parser.add_argument('--monitor_gpu', type=int, default=1, help='monitor and save GPU usage with nvidia-smi')
 
 
 args = parser.parse_args()
@@ -102,7 +102,7 @@ Exp = Exp_Informer
 
 for ii in range(args.itr):
     # setting record of experiments
-    setting = '{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_at{}_fc{}_eb{}_dt{}_mx{}_{}_{}_enc={},dec={}'.format(
+    setting = '{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_at{}_fc{}_eb{}_dt{}_mx{}_{}_{}_enc={}_dec={}'.format(
         args.model, args.data, args.features, 
         args.seq_len, args.label_len, args.pred_len,
         args.d_model, args.n_heads, args.e_layers, args.d_layers, args.d_ff, args.attn, args.factor, 
