@@ -16,49 +16,74 @@ import os
 import time
 import json
 import pandas as pd
+import uuid
+import signal, psutil
 
 import warnings
 warnings.filterwarnings('ignore')
 
 import subprocess
 
-def run_nvidia_smi(output_file):
-    # Record GPU metrics in a subprocess and pipe CSV output to `output_file`.
+
+class NvidiaSMI:
+    """ Record GPU metrics in a subprocess using nvidia-smi """
     
-    cmd = f"nvidia-smi --query-gpu=timestamp,name,index,count,uuid,gpu_bus_id,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.free,memory.used --format=csv -l 1 > {output_file}"
-    
-    process = subprocess.Popen(cmd,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT,
-                               universal_newlines=True,
-                               shell=True)
+    def __init__(self, output_file, device=None):
+        self.output_file = output_file
+        self.device = device
+        assert isinstance(device, int) and device >= 0, device
 
-def load_smi(path):
-    """ Loads the CSV file saved by `nvidia-smi` command below."""
+    def start(self):
+        """ Start recording metics """
+        cmd = f"nvidia-smi --query-gpu=timestamp,name,index,count,uuid,gpu_bus_id,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.free,memory.used --format=csv -l 1"
+        if self.device is not None:
+            cmd += f' -i {self.device}'
+        cmd += f' > {self.output_file}'
 
-    def p2f(x):
-        # convert percentage values into floats
-        return float(x.strip('%'))
+        # shell=False creates just a single process (process.pid)
+        self.process = subprocess.Popen(cmd,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT,
+                                   universal_newlines=True,
+                                   shell=True)
 
-    def mib2f(x):
-        # convert MiB memory usage values into floats
-        return float(x.strip('MiB'))
+    def stop(self):
+        """ Stop recording metrics. Need to terminate both parent and child processes. """
+        parent_pid = self.process.pid
+        try:
+            parent = psutil.Process(parent_pid)
+        except psutil.NoSuchProcess:
+            return
+        children = parent.children(recursive=True)
+        for process in children:
+            process.send_signal(signal.SIGTERM)
 
-    df = pd.read_csv(path,
-                     converters={
-                         ' utilization.gpu [%]': p2f,
-                         ' utilization.memory [%]': p2f,
-                         ' memory.total [MiB]': mib2f,
-                         ' memory.free [MiB]': mib2f,
-                         ' memory.used [MiB]': mib2f,
-                     })
+    def load(self):
+        """ Loads the CSV file saved by `nvidia-smi`. """
+        
+        def p2f(x):
+            # convert percentage values into floats
+            return float(x.strip('%'))
 
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
+        def mib2f(x):
+            # convert MiB memory usage values into floats
+            return float(x.strip('MiB'))
 
-    # remove leading spaces in column names
-    df = df.rename(columns={c: c[1:] if c.startswith(' ') else c for c in df.columns})
+        df = pd.read_csv(self.output_file,
+                         converters={
+                             ' utilization.gpu [%]': p2f,
+                             ' utilization.memory [%]': p2f,
+                             ' memory.total [MiB]': mib2f,
+                             ' memory.free [MiB]': mib2f,
+                             ' memory.used [MiB]': mib2f,
+                         })
 
-    return df
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+        # remove leading spaces in column names
+        df = df.rename(columns={c: c[1:] if c.startswith(' ') else c for c in df.columns})
+
+        return df
 
 
 def param_count(model):
@@ -104,7 +129,7 @@ class Exp_Informer(Exp_Basic):
         
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
-        print(model)
+        # print(model)
         print('num_params: {:,}'.format(param_count(model)))
         return model
 
@@ -188,7 +213,11 @@ class Exp_Informer(Exp_Basic):
 
         # record GPU usage
         if self.args.monitor_gpu:
-            run_nvidia_smi(folder_path + 'gpu-usage.csv')
+            device_idx = next(self.model.parameters()).device.index
+            smi_rec = NvidiaSMI(folder_path + 'gpu-usage.csv', device=device_idx)
+            smi_rec.start()
+        else:
+            smi_rec = None
 
         time_now = time.time()
         
@@ -238,6 +267,8 @@ class Exp_Informer(Exp_Basic):
                     loss.backward()
                     model_optim.step()
 
+                # break
+
             print("Epoch: {} cost time: {}".format(epoch+1, time.time()-epoch_time))
             train_loss = np.average(train_loss)
             vali_loss = self.vali(vali_data, vali_loader, criterion)
@@ -261,17 +292,11 @@ class Exp_Informer(Exp_Basic):
 
         if self.args.monitor_gpu:
             # stop the nvidia-smi process
-            os.system('pkill -f nvidia-smi')
-
-        if self.args.monitor_gpu:
-            # nvidia-smi metrics for ALL gpus on this machine
-            smi = load_smi(folder_path + 'gpu-usage.csv')
-            # device that the model is on
-            device = next(self.model.parameters()).device
-            # trim to just the GPU that this model is on
-            smi = smi[smi['index'] == device.index]
+            smi_rec.stop()
+            # DataFrame of results
+            smi_df = smi_rec.load()
             # peak memory usage during training
-            peak_mem_usage = smi['memory.used [MiB]'].max()
+            peak_mem_usage = smi_df['memory.used [MiB]'].max()
         else:
             peak_mem_usage = None
 

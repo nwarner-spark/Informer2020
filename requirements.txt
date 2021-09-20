@@ -1,5 +1,10 @@
+
+# For A100 GPUs, need CUDA 11.1 and the latest torch 1.9:
+# conda install pytorch torchvision torchaudio cudatoolkit=11.1 -c pytorch -c nvidia
 matplotlib == 3.1.1
 numpy == 1.19.4
 pandas == 0.25.1
 scikit_learn == 0.21.3
-torch == 1.8.0
+# torch == 1.8.0
+psutil
+

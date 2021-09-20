@@ -2,7 +2,7 @@ import argparse
 import os
 import torch
 import sys
-sys.path.insert(0,'/home/nwarner/Informer2020')
+#sys.path.insert(0, '/home/nwarner/Informer2020')
 
 from exp.exp_informer import Exp_Informer
 
@@ -61,8 +61,8 @@ parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple g
 parser.add_argument('--devices', type=str, default='0,1,2,3',help='device ids of multile gpus')
 
 ## Add parsing arguments for encoder, decoder FNET attention type
-parser.add_argument('--encoder_type', type=str, default='attention',help='FNET or Attn for encoder')
-parser.add_argument('--decoder_type', type=str, default='attention',help='FNET or Attn for decoder')
+parser.add_argument('--encoder_type', type=str, default='attention', help='FNET or Attn for encoder')
+parser.add_argument('--decoder_type', type=str, default='attention', help='FNET or Attn for decoder')
 parser.add_argument('--monitor_gpu', type=int, default=1, help='monitor and save GPU usage with nvidia-smi')
 
 
@@ -109,14 +109,14 @@ for ii in range(args.itr):
         args.embed, args.distil, args.mix, args.des, ii, args.encoder_type, args.decoder_type)
 
     exp = Exp(args) # set experiments
-    print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
+    print('>>>>>>> start training : {} >>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
     exp.train(setting)
     
-    print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+    print('>>>>>>> testing : {} <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
     exp.test(setting)
 
     if args.do_predict:
-        print('>>>>>>>predicting : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+        print('>>>>>>> predicting : {} <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
         exp.predict(setting, True)
 
     torch.cuda.empty_cache()
