@@ -1,1 +1,1 @@
-{"n_batches_test": 163, "t_batches_test": 4.395732164382935, "mse_test": 0.8760265707969666, "mae_test": 0.769411563873291, "mape_test": 3.1904776096343994}{"n_batches_test": 163, "t_batches_test": 4.237097978591919, "mse_test": 0.8783775568008423, "mae_test": 0.7673728466033936, "mape_test": 3.220552682876587}
+{"n_batches_test": 163, "t_batches_test": 4.237097978591919, "mse_test": 0.8783775568008423, "mae_test": 0.7673728466033936, "mape_test": 3.220552682876587}
