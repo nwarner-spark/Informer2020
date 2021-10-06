@@ -309,7 +309,7 @@ class Exp_Informer(Exp_Basic):
         )
         print(out)
         with open(folder_path + 'metrics_train.json', 'a') as f:
-            json.dump(out, f)
+            f.write(json.dumps(out) + '\n')
         
         return self.model
 
@@ -368,7 +368,7 @@ class Exp_Informer(Exp_Basic):
         )
         print(out)
         with open(folder_path + 'metrics_test.json', 'a') as f:
-            json.dump(out, f)
+            f.write(json.dumps(out) + '\n')
 
         return
 
