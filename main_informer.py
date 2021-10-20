@@ -6,6 +6,19 @@ import sys
 
 from exp.exp_informer import Exp_Informer
 
+
+def set_seeds(seed):
+    import random
+    import torch
+    import numpy as np
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+set_seeds(0)
+    
 parser = argparse.ArgumentParser(description='[Informer] Long Sequences Forecasting')
 
 parser.add_argument('--model', type=str, default='informer',help='model of experiment, options: [informer, informerstack, informerlight(TBD)]')

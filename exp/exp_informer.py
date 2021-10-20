@@ -24,7 +24,6 @@ warnings.filterwarnings('ignore')
 
 import subprocess
 
-
 class NvidiaSMI:
     """ Record GPU metrics in a subprocess using nvidia-smi """
     
