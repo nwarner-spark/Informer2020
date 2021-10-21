@@ -1,3 +1,5 @@
 results/*/*.npy
 checkpoints/
 *.pyc
+data/ETT/ECL.csv
+data/ETT/WTH.csv
